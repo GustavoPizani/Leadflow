@@ -44,3 +44,5 @@ next-env.d.ts
 
 # config local do Claude Code (allowlist de permissões, específico da máquina)
 .claude/settings.local.json
+
+.vercel
