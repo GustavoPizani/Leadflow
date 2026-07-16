@@ -18,7 +18,7 @@ export default async function RoletasPage() {
   const [roulettes, allUsers] = await Promise.all([
     prisma.leadflowRoulette.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { members: true },
+      include: { members: { orderBy: { lastAssignedAt: { sort: 'asc', nulls: 'first' } } } },
     }),
     listAllLocalUsers(),
   ]);
@@ -26,6 +26,13 @@ export default async function RoletasPage() {
   const allUserIds = Array.from(new Set(roulettes.flatMap((r) => r.members.map((m) => m.userId))));
   const localUsers = await listLocalUsersByIds(allUserIds);
   const localUserById = new Map(localUsers.map((u) => [u.id, u]));
+
+  const leadCounts = await prisma.leadflowLead.groupBy({
+    by: ['roletaId', 'assignedUserId'],
+    where: { roletaId: { in: roulettes.map((r) => r.id) }, assignedUserId: { not: null } },
+    _count: true,
+  });
+  const leadCountByKey = new Map(leadCounts.map((c) => [`${c.roletaId}:${c.assignedUserId}`, c._count]));
 
   return (
     <div className="space-y-6">
@@ -151,6 +158,42 @@ export default async function RoletasPage() {
           )}
         </CardContent>
       </Card>
+
+      {roulettes.map((roulette) => (
+        <Card key={roulette.id}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              {roulette.name}
+              <Badge variant={roulette.isActive ? 'default' : 'secondary'}>
+                {roulette.isActive ? 'Ativa' : 'Inativa'}
+              </Badge>
+            </CardTitle>
+            <CardDescription>Ordem de atendimento — quem está na vez e quantos leads já recebeu.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {roulette.members.map((member, index) => {
+              const person = localUserById.get(member.userId);
+              const isNext = index === 0;
+              const count = leadCountByKey.get(`${roulette.id}:${member.userId}`) ?? 0;
+              return (
+                <Badge
+                  key={member.userId}
+                  variant={isNext ? 'default' : 'outline'}
+                  className="flex items-center gap-1.5 px-3 py-1"
+                >
+                  <span className="text-xs opacity-70">#{index + 1}</span>
+                  {person?.name ?? member.userId}
+                  <span className="text-xs opacity-70">· {count} lead(s)</span>
+                  {isNext && <span className="ml-1 text-xs font-semibold">NA VEZ</span>}
+                </Badge>
+              );
+            })}
+            {roulette.members.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum corretor nesta roleta.</p>
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
