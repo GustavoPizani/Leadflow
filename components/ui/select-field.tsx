@@ -21,8 +21,11 @@ export function SelectField({
   className?: string;
   disabled?: boolean;
 }) {
+  const items = Object.fromEntries(options.map((option) => [option.value, option.label]));
+
   return (
     <Select
+      items={items}
       value={value}
       defaultValue={defaultValue}
       name={name}
