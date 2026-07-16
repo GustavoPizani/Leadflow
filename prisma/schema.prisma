@@ -1,0 +1,191 @@
+// Schema deste projeto (Leadflow). Contém SOMENTE tabelas próprias, prefixadas `leadflow_`.
+// A tabela `users` do CRM Real-Sales NÃO é modelada aqui de propósito: nenhuma migration
+// deste projeto pode tocá-la. O único ponto de leitura da tabela `users` é lib/crm-users.ts,
+// via prisma.$queryRaw (somente SELECT).
+//
+// Identidade: só o admin de marketing oculto é compartilhado com o CRM (seu id é o mesmo
+// id de `users`/auth.users do Real-Sales). Gestor e corretores são contas 100% novas,
+// criadas só para este projeto (novo registro em auth.users via Supabase Admin API +
+// linha correspondente em LeadflowLocalUser) — nenhum vínculo com a tabela `users` do CRM.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum LeadflowLeadStatus {
+  NEW
+  ASSIGNED
+  ERROR
+
+  @@map("leadflow_lead_status")
+}
+
+model LeadflowRoulette {
+  id          String    @id @default(cuid())
+  name        String
+  isActive    Boolean   @default(true)
+  validFrom   DateTime?
+  validUntil  DateTime?
+  createdAt   DateTime  @default(now())
+
+  members LeadflowRouletteMember[]
+  forms   LeadflowForm[]
+  leads   LeadflowLead[]
+
+  @@map("leadflow_roulettes")
+}
+
+model LeadflowRouletteMember {
+  rouletteId     String
+  /// id de LeadflowLocalUser (corretor) — nunca de `users` do CRM.
+  userId         String
+  lastAssignedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  roulette LeadflowRoulette @relation(fields: [rouletteId], references: [id], onDelete: Cascade)
+
+  @@id([rouletteId, userId])
+  @@index([rouletteId, lastAssignedAt])
+  @@map("leadflow_roulette_members")
+}
+
+model LeadflowForm {
+  id              String    @id @default(cuid())
+  name            String
+  source          String
+  /// id do leadgen form no Meta (`form_id` do webhook) quando `source = "meta"`. Único porque
+  /// é assim que /api/meta/ingest decide, por form_id, se este formulário pertence ao Leadflow.
+  externalFormId  String?   @unique
+  roletaId        String?
+  /// id de LeadflowLocalUser (corretor) — nunca de `users` do CRM.
+  defaultUserId   String?
+  isActive        Boolean   @default(true)
+  webhookSecret   String    @unique
+  fieldMappings   Json      @default("{}")
+  metaConnectionId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  roulette       LeadflowRoulette?       @relation(fields: [roletaId], references: [id])
+  metaConnection LeadflowMetaConnection? @relation(fields: [metaConnectionId], references: [id])
+  leads          LeadflowLead[]
+
+  @@map("leadflow_forms")
+}
+
+/**
+ * Conexão OAuth do Leadflow com uma página do Meta — usada só para chamar a Graph API
+ * (listar formulários, buscar o lead completo pelo leadgen_id). O Leadflow nunca recebe
+ * webhook do Meta diretamente; quem recebe é o Real-Sales, que repassa para
+ * /api/meta/ingest (ver lib/meta-ingest-auth.ts).
+ */
+model LeadflowMetaConnection {
+  id              String   @id @default(cuid())
+  pageId          String   @unique
+  pageName        String
+  pageAccessToken String
+  userAccessToken String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  forms LeadflowForm[]
+
+  @@map("leadflow_meta_connections")
+}
+
+model LeadflowLead {
+  id             String              @id @default(cuid())
+  fullName       String?
+  email          String?
+  phone          String?
+  source         String
+  rawPayload     Json
+  formId         String?
+  /// id de LeadflowLocalUser (corretor) — nunca de `users` do CRM.
+  assignedUserId String?
+  roletaId       String?
+  status         LeadflowLeadStatus  @default(NEW)
+  errorReason    String?
+  createdAt      DateTime            @default(now())
+  assignedAt     DateTime?
+
+  form     LeadflowForm?     @relation(fields: [formId], references: [id])
+  roulette LeadflowRoulette? @relation(fields: [roletaId], references: [id])
+
+  @@index([assignedUserId])
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@map("leadflow_leads")
+}
+
+/**
+ * Conta local (gestor ou corretor), criada só para o Leadflow via Supabase Admin API.
+ * O id AQUI é o mesmo id do auth.users criado para essa conta — mas é um auth.users
+ * novo, sem linha correspondente na tabela `users` do CRM.
+ */
+model LeadflowLocalUser {
+  id        String   @id
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("leadflow_local_users")
+}
+
+model LeadflowAdminUser {
+  userId    String   @id
+  createdAt DateTime @default(now())
+
+  @@map("leadflow_admin_users")
+}
+
+model LeadflowTeam {
+  id        String   @id @default(cuid())
+  name      String
+  /// id de LeadflowLocalUser (gestor) — nunca de `users` do CRM.
+  managerId String
+  createdAt DateTime @default(now())
+
+  members LeadflowTeamMember[]
+
+  @@index([managerId])
+  @@map("leadflow_teams")
+}
+
+model LeadflowTeamMember {
+  teamId    String
+  /// id de LeadflowLocalUser (corretor) — nunca de `users` do CRM.
+  userId    String
+  createdAt DateTime @default(now())
+
+  team LeadflowTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@map("leadflow_team_members")
+}
+
+/**
+ * Inscrição de push (Web Push API) de um dispositivo. `userId` é o id de auth.users — pode ser
+ * o admin oculto (LeadflowAdminUser) ou um LeadflowLocalUser, sem FK para nenhum dos dois (mesmo
+ * padrão de "userId solto" já usado em roleta/equipe). Um usuário pode ter várias linhas
+ * (multi-dispositivo).
+ */
+model LeadflowPushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("leadflow_push_subscriptions")
+}
