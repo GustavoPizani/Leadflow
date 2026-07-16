@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { getAccessLevel, homeRouteForLevel } from '@/lib/access-level';
+import { homeRouteForLevel } from '@/lib/access-level';
+import { getCurrentUser, getCurrentAccess } from '@/lib/auth-context';
 import { NavShell } from '@/components/nav-shell';
 
 const LINKS = [
@@ -9,13 +9,10 @@ const LINKS = [
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const access = await getAccessLevel(user.id);
+  const access = await getCurrentAccess(user.id);
   if (access.level !== 'USUARIO') redirect(homeRouteForLevel(access.level));
 
   return (

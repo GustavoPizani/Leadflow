@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth-context';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LeadDeepLink } from '@/components/lead-deep-link';
@@ -10,10 +10,7 @@ function formatDate(d: Date) {
 }
 
 export default async function MeusLeadsPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const leads = user
     ? await prisma.leadflowLead.findMany({

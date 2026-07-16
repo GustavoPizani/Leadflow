@@ -2,8 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@/lib/supabase/server';
-import { getAccessLevel } from '@/lib/access-level';
+import { getCurrentUser, getCurrentAccess } from '@/lib/auth-context';
 import { leadWhereForAccess } from '@/lib/visibility';
 import { listLocalUsersByIds } from '@/lib/local-users';
 import { flattenMetaFieldData } from '@/lib/lead-intake';
@@ -44,13 +43,10 @@ const NOISE_KEYS = new Set([
  * na lista.
  */
 export async function getLeadForModal(leadId: string) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error('Não autenticado.');
 
-  const access = await getAccessLevel(user.id);
+  const access = await getCurrentAccess(user.id);
   const where = await leadWhereForAccess(user.id, access);
 
   const lead = await prisma.leadflowLead.findFirst({

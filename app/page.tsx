@@ -1,15 +1,11 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { getAccessLevel, homeRouteForLevel } from '@/lib/access-level';
+import { homeRouteForLevel } from '@/lib/access-level';
+import { getCurrentUser, getCurrentAccess } from '@/lib/auth-context';
 
 export default async function RootPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const access = await getAccessLevel(user.id);
+  const access = await getCurrentAccess(user.id);
   redirect(homeRouteForLevel(access.level));
 }

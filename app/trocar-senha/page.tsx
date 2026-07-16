@@ -1,12 +1,9 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUser } from '@/lib/auth-context';
 import { ChangePasswordForm } from '@/components/change-password-form';
 
 export default async function TrocarSenhaPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
   return (

@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
-import { getAccessLevel } from '@/lib/access-level';
+import { getCurrentUser, getCurrentAccess } from '@/lib/auth-context';
 import { leadWhereForAccess } from '@/lib/visibility';
 import { listLocalUsersByIds } from '@/lib/local-users';
 import { Badge } from '@/components/ui/badge';
@@ -13,14 +12,11 @@ function formatDate(d: Date) {
 }
 
 export default async function GestorDashboardPage() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   const leads = user
     ? await (async () => {
-        const access = await getAccessLevel(user.id);
+        const access = await getCurrentAccess(user.id);
         const where = await leadWhereForAccess(user.id, access);
         return prisma.leadflowLead.findMany({
           where,

@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { getAccessLevel } from '@/lib/access-level';
+import { getCurrentUser, getCurrentAccess } from '@/lib/auth-context';
 import { getCrmUserById } from '@/lib/crm-users';
 import { listLocalUsersByIds } from '@/lib/local-users';
 import { ChangePasswordForm } from '@/components/change-password-form';
@@ -9,13 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 
 /** Conteúdo da página "Minha conta", reaproveitado nas três áreas (admin/gestor/app). */
 export async function AccountSettings() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const access = await getAccessLevel(user.id);
+  const access = await getCurrentAccess(user.id);
   const name =
     access.level === 'ADMIN'
       ? ((await getCrmUserById(user.id))?.name ?? user.email ?? '')

@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { defaultCache } from '@serwist/next/worker';
+import { CacheFirst, NetworkOnly, StaleWhileRevalidate, ExpirationPlugin, type RuntimeCaching } from 'serwist';
 import { Serwist } from 'serwist';
 import { urlBase64ToUint8Array } from '../lib/push-client-helpers';
 
@@ -7,12 +7,45 @@ declare const self: ServiceWorkerGlobalScope & {
   __SW_MANIFEST: Array<unknown>;
 };
 
+/**
+ * O Leadflow é um painel autenticado e altamente dinâmico — nenhuma página HTML, RSC ou
+ * resposta de API deve ser cacheada (cada uma é específica de sessão/permissão). Usar o
+ * `defaultCache` padrão do Serwist (NetworkFirst para páginas/API) causava erros
+ * "no-response" no console e respostas eventualmente erradas/obsoletas. Aqui só cacheamos
+ * assets realmente estáticos; tudo o resto vai direto pra rede, sem o SW interferir.
+ */
+const runtimeCaching: RuntimeCaching[] = [
+  {
+    matcher: /\.(?:eot|otf|ttc|ttf|woff|woff2)$/i,
+    handler: new CacheFirst({
+      cacheName: 'static-fonts',
+      plugins: [new ExpirationPlugin({ maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 })],
+    }),
+  },
+  {
+    matcher: /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,
+    handler: new StaleWhileRevalidate({
+      cacheName: 'static-images',
+      plugins: [new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 30 })],
+    }),
+  },
+  {
+    matcher: /\/_next\/static\/.+\.(?:js|css)$/i,
+    handler: new CacheFirst({
+      cacheName: 'next-static-assets',
+      plugins: [new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 30 })],
+    }),
+  },
+  // Páginas, RSC payloads e qualquer /api/* — sempre rede, nunca cache.
+  { matcher: /.*/i, handler: new NetworkOnly() },
+];
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching,
 });
 
 serwist.addEventListeners();
