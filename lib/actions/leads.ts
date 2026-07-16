@@ -73,6 +73,7 @@ export async function getLeadForModal(leadId: string) {
     fullName: lead.fullName,
     email: lead.email,
     phone: lead.phone,
+    notes: lead.notes,
     source: lead.source,
     formName: lead.form?.name ?? null,
     status: lead.status,

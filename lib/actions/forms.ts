@@ -120,7 +120,7 @@ export async function linkMetaForm(params: {
   }
   const fieldMappings = params.fieldMappings ?? {};
 
-  await prisma.leadflowForm.upsert({
+  const form = await prisma.leadflowForm.upsert({
     where: { externalFormId },
     create: {
       name,
@@ -142,17 +142,16 @@ export async function linkMetaForm(params: {
   });
 
   revalidatePath('/admin/formularios');
+  return { id: form.id };
 }
 
 /**
- * Backfill manual: pagina os leads do formulário direto na Graph API e roda cada um pela
- * mesma esteira de intake/roleta. Serve de rede de segurança se algum push de webhook do
- * Real-Sales -> /api/meta/ingest falhar.
+ * Backfill: pagina os leads do formulário direto na Graph API e roda cada um pela mesma
+ * esteira de intake/roleta. Usado tanto pelo botão "Sincronizar agora" (formulário já
+ * vinculado) quanto logo depois de vincular, pra importar quem já tinha caído antes.
  */
-export async function syncMetaFormNow(formData: FormData): Promise<void> {
+export async function syncMetaFormById(id: string): Promise<{ processed: number }> {
   await requireAdmin();
-
-  const id = String(formData.get('id') ?? '');
   if (!id) throw new Error('Id inválido.');
 
   const form = await prisma.leadflowForm.findUnique({
@@ -181,6 +180,13 @@ export async function syncMetaFormNow(formData: FormData): Promise<void> {
     after = nextAfter ?? undefined;
   } while (after);
 
-  console.log(`[syncMetaFormNow] form ${id}: ${processed} lead(s) processados`);
+  console.log(`[syncMetaFormById] form ${id}: ${processed} lead(s) processados`);
   revalidatePath('/admin/formularios');
+  return { processed };
+}
+
+/** Wrapper pra uso direto em `<form action={syncMetaFormNow}>` na lista de formulários. */
+export async function syncMetaFormNow(formData: FormData): Promise<void> {
+  const id = String(formData.get('id') ?? '');
+  await syncMetaFormById(id);
 }

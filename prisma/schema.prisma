@@ -105,6 +105,9 @@ model LeadflowLead {
   fullName       String?
   email          String?
   phone          String?
+  /// Campo livre mapeado como "Observação" (ex: "quanto pretende investir", mensagem etc.) —
+  /// não entra em fullName/email/phone, mas fica visível pro corretor/gestor no modal do lead.
+  notes          String?
   source         String
   rawPayload     Json
   formId         String?

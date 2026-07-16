@@ -17,7 +17,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { linkMetaForm } from '@/lib/actions/forms';
+import { linkMetaForm, syncMetaFormById } from '@/lib/actions/forms';
 
 type MetaConnection = { id: string; pageId: string; pageName: string; isActive: boolean };
 type LeadgenForm = { id: string; name: string; status: string };
@@ -28,6 +28,7 @@ const CRM_TARGETS = [
   { value: 'fullName', label: 'Nome completo' },
   { value: 'email', label: 'E-mail' },
   { value: 'phone', label: 'Telefone' },
+  { value: 'notes', label: 'Observação' },
   { value: 'ignore', label: 'Ignorar' },
 ];
 
@@ -39,6 +40,7 @@ const AUTO_DETECT_BY_TYPE: Record<string, string> = {
   PHONE: 'phone',
   PHONE_NUMBER: 'phone',
   WHATSAPP_NUMBER: 'phone',
+  CUSTOM: 'notes',
 };
 
 const AUTO_DETECT_BY_KEY: [RegExp, string][] = [
@@ -47,12 +49,13 @@ const AUTO_DETECT_BY_KEY: [RegExp, string][] = [
   [/phone|telefone|celular|whatsapp/i, 'phone'],
 ];
 
+/** Sem correspondência clara, cai em "Observação" — nada é descartado por padrão. */
 function autoDetect(question: FormQuestion): string {
   if (AUTO_DETECT_BY_TYPE[question.type]) return AUTO_DETECT_BY_TYPE[question.type];
   for (const [pattern, target] of AUTO_DETECT_BY_KEY) {
     if (pattern.test(question.key) || pattern.test(question.label)) return target;
   }
-  return 'ignore';
+  return 'notes';
 }
 
 export function MetaConnectManager({
@@ -172,6 +175,8 @@ function NewMetaFormDialog({
   const [name, setName] = useState('');
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [roletaId, setRoletaId] = useState('');
+  const [importExisting, setImportExisting] = useState(true);
+  const [importResult, setImportResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -183,6 +188,8 @@ function NewMetaFormDialog({
     setName('');
     setMapping({});
     setRoletaId('');
+    setImportExisting(true);
+    setImportResult(null);
     setError(null);
   }
 
@@ -246,20 +253,34 @@ function NewMetaFormDialog({
 
     startTransition(async () => {
       try {
-        await linkMetaForm({
+        const { id } = await linkMetaForm({
           metaConnectionId: connection.id,
           externalFormId: formId,
           name,
           roletaId: roletaId || null,
           fieldMappings,
         });
-        setOpen(false);
-        resetAll();
+
+        if (importExisting) {
+          setImportResult('Importando leads que já chegaram...');
+          router.refresh();
+          const { processed } = await syncMetaFormById(id);
+          setImportResult(`${processed} lead(s) importado(s).`);
+        } else {
+          setOpen(false);
+          resetAll();
+        }
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Falha ao vincular formulário.');
       }
     });
+  }
+
+  function closeAfterImport() {
+    setOpen(false);
+    resetAll();
+    router.refresh();
   }
 
   return (
@@ -328,15 +349,15 @@ function NewMetaFormDialog({
                       <span className="min-w-0 flex-1 pt-1.5 text-xs leading-snug">{q.label}</span>
                       <SelectField
                         className="h-7 w-40 shrink-0 text-xs"
-                        value={mapping[q.key] ?? 'ignore'}
+                        value={mapping[q.key] ?? 'notes'}
                         onValueChange={(v) => setMapping((prev) => ({ ...prev, [q.key]: v }))}
                         options={CRM_TARGETS}
                       />
                     </div>
                   ))}
                   <p className="pt-1 text-xs text-muted-foreground">
-                    Campos deixados como &quot;Ignorar&quot; ficam disponíveis no payload bruto, mas não
-                    preenchem nome/e-mail/telefone do lead.
+                    Campos sem correspondência clara caem em &quot;Observação&quot; por padrão — nada é
+                    perdido. Só campos marcados como &quot;Ignorar&quot; ficam de fora do modal do lead.
                   </p>
                 </div>
               )}
@@ -354,13 +375,32 @@ function NewMetaFormDialog({
             </div>
           )}
 
+          {formId && !importResult && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={importExisting}
+                onChange={(e) => setImportExisting(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              Importar leads que já chegaram neste formulário
+            </label>
+          )}
+
+          {importResult && <p className="text-sm text-muted-foreground">{importResult}</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
         <DialogFooter>
-          <Button type="button" onClick={submit} disabled={!formId || isPending}>
-            {isPending ? 'Vinculando...' : 'Vincular ao Leadflow'}
-          </Button>
+          {importResult ? (
+            <Button type="button" onClick={closeAfterImport} disabled={importResult.startsWith('Importando')}>
+              Fechar
+            </Button>
+          ) : (
+            <Button type="button" onClick={submit} disabled={!formId || isPending}>
+              {isPending ? 'Vinculando...' : 'Vincular ao Leadflow'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

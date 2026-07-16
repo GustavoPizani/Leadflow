@@ -3,7 +3,7 @@ import { prisma } from './prisma';
 import { assignLead } from './roulette';
 import { notifyLeadAssigned } from './lead-notifications';
 
-type ExtractedLead = { fullName: string | null; email: string | null; phone: string | null };
+type ExtractedLead = { fullName: string | null; email: string | null; phone: string | null; notes: string | null };
 
 function getByPath(obj: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((acc, key) => {
@@ -47,6 +47,7 @@ const DEFAULT_GUESSES: Record<keyof ExtractedLead, string[]> = {
   fullName: ['full_name', 'fullName', 'name', 'nome'],
   email: ['email', 'e-mail'],
   phone: ['phone', 'phone_number', 'telefone', 'celular', 'whatsapp'],
+  notes: ['observacoes', 'observações', 'observations', 'message', 'mensagem', 'comentario', 'comentário'],
 };
 
 export function extractLeadFields(
@@ -72,7 +73,12 @@ export function extractLeadFields(
     return null;
   }
 
-  return { fullName: resolve('fullName'), email: resolve('email'), phone: resolve('phone') };
+  return {
+    fullName: resolve('fullName'),
+    email: resolve('email'),
+    phone: resolve('phone'),
+    notes: resolve('notes'),
+  };
 }
 
 const DEDUP_WINDOW_DAYS = 30;
@@ -94,6 +100,7 @@ async function createAssignedLead(params: {
   fullName: string | null;
   email: string | null;
   phone: string | null;
+  notes: string | null;
   source: string;
   rawPayload: unknown;
   formId: string | null;
@@ -101,7 +108,7 @@ async function createAssignedLead(params: {
   rouletteId: string | null;
   defaultUserId: string | null;
 }) {
-  const { fullName, email, phone, source, rawPayload, formId, formName, rouletteId, defaultUserId } = params;
+  const { fullName, email, phone, notes, source, rawPayload, formId, formName, rouletteId, defaultUserId } = params;
   const rawPayloadJson = (rawPayload ?? {}) as Prisma.InputJsonValue;
 
   const duplicate = await findRecentDuplicate(email, phone);
@@ -112,6 +119,7 @@ async function createAssignedLead(params: {
         fullName,
         email,
         phone,
+        notes,
         source,
         rawPayload: rawPayloadJson,
         formId,
@@ -129,6 +137,7 @@ async function createAssignedLead(params: {
       fullName,
       email,
       phone,
+      notes,
       source,
       rawPayload: rawPayloadJson,
       formId,
@@ -157,12 +166,13 @@ async function createAssignedLead(params: {
 export async function intakeLead(params: { form: LeadflowForm; rawPayload: unknown }) {
   const { form, rawPayload } = params;
   const fieldMappings = (form.fieldMappings as Record<string, string> | null) ?? {};
-  const { fullName, email, phone } = extractLeadFields(rawPayload, fieldMappings);
+  const { fullName, email, phone, notes } = extractLeadFields(rawPayload, fieldMappings);
 
   return createAssignedLead({
     fullName,
     email,
     phone,
+    notes,
     source: form.source,
     rawPayload,
     formId: form.id,
@@ -177,9 +187,16 @@ export async function createManualLead(params: {
   fullName: string | null;
   email: string | null;
   phone: string | null;
+  notes?: string | null;
   source: string;
   rouletteId: string | null;
   defaultUserId: string | null;
 }) {
-  return createAssignedLead({ ...params, rawPayload: params, formId: null, formName: null });
+  return createAssignedLead({
+    ...params,
+    notes: params.notes ?? null,
+    rawPayload: params,
+    formId: null,
+    formName: null,
+  });
 }

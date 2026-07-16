@@ -26,6 +26,7 @@ function buildWhatsAppMessage(lead: LeadModalData) {
     lead.email ? `E-mail: ${lead.email}` : null,
     lead.phone ? `Telefone: ${lead.phone}` : null,
     `Origem: ${lead.formName ?? lead.source}`,
+    lead.notes ? `Observação: ${lead.notes}` : null,
     ...Object.entries(lead.responses).map(([key, value]) => `${key}: ${value}`),
   ].filter((line): line is string => !!line);
   return lines.join('\n');
@@ -71,6 +72,11 @@ export function LeadDetailModal({
               <div className="space-y-1 text-muted-foreground">
                 {lead.email && <p>E-mail: {lead.email}</p>}
                 {lead.phone && <p>Telefone: {lead.phone}</p>}
+                {lead.notes && (
+                  <p className="break-words">
+                    <span className="text-foreground">Observação:</span> {lead.notes}
+                  </p>
+                )}
               </div>
             )}
 

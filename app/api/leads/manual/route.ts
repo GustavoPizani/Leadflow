@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
 
-  const { fullName, email, phone, source, rouletteId, defaultUserId } = body as Record<
+  const { fullName, email, phone, notes, source, rouletteId, defaultUserId } = body as Record<
     string,
     string | null | undefined
   >;
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     fullName: fullName ?? null,
     email: email ?? null,
     phone: phone ?? null,
+    notes: notes ?? null,
     source: source || 'manual',
     rouletteId: rouletteId ?? null,
     defaultUserId: defaultUserId ?? null,
