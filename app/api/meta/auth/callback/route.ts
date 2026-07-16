@@ -5,12 +5,12 @@ import { prisma } from '@/lib/prisma';
 import { exchangeCodeForToken, getLongLivedToken, listAdminPages } from '@/lib/meta-graph';
 
 function redirectUri(request: NextRequest) {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin;
+  const base = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
   return `${base}/api/meta/auth/callback`;
 }
 
 function popupResult(request: NextRequest, status: 'success' | 'error') {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin;
+  const base = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
   return NextResponse.redirect(`${base}/meta/oauth?status=${status}`);
 }
 

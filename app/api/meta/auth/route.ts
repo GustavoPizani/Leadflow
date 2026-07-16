@@ -4,7 +4,7 @@ import { getAccessLevel } from '@/lib/access-level';
 import { buildAuthorizeUrl } from '@/lib/meta-graph';
 
 function redirectUri(request: NextRequest) {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin;
+  const base = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
   return `${base}/api/meta/auth/callback`;
 }
 
