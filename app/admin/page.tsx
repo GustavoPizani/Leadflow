@@ -11,11 +11,15 @@ function formatDate(d: Date) {
 }
 
 export default async function AdminDashboardPage() {
-  const [total, byStatus, bySource, recentLeads] = await Promise.all([
+  const [total, byStatus, sourceRows, recentLeads] = await Promise.all([
     prisma.leadflowLead.count(),
     prisma.leadflowLead.groupBy({ by: ['status'], _count: true }),
-    prisma.leadflowLead.groupBy({ by: ['source'], _count: true, orderBy: { _count: { source: 'desc' } } }),
-    prisma.leadflowLead.findMany({ orderBy: { createdAt: 'desc' }, take: 20 }),
+    prisma.leadflowLead.findMany({ select: { source: true, form: { select: { name: true } } } }),
+    prisma.leadflowLead.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: { form: { select: { name: true } } },
+    }),
   ]);
 
   const assignedIds = recentLeads.map((l) => l.assignedUserId).filter((id): id is string => !!id);
@@ -23,6 +27,17 @@ export default async function AdminDashboardPage() {
   const localUserById = new Map(localUsers.map((u) => [u.id, u]));
 
   const statusCount = Object.fromEntries(byStatus.map((s) => [s.status, s._count]));
+
+  // Agrupa "por origem" pelo nome do formulário quando existe — só cai no `source` cru
+  // (ex: "manual") pra leads sem formulário vinculado.
+  const bySourceMap = new Map<string, number>();
+  for (const row of sourceRows) {
+    const label = row.form?.name ?? row.source;
+    bySourceMap.set(label, (bySourceMap.get(label) ?? 0) + 1);
+  }
+  const bySource = Array.from(bySourceMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count]) => ({ label, count }));
 
   return (
     <div className="space-y-6">
@@ -44,8 +59,8 @@ export default async function AdminDashboardPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {bySource.map((s) => (
-            <Badge key={s.source} variant="outline">
-              {s.source}: {s._count}
+            <Badge key={s.label} variant="outline">
+              {s.label}: {s.count}
             </Badge>
           ))}
           {bySource.length === 0 && <p className="text-sm text-muted-foreground">Sem dados ainda.</p>}
@@ -73,7 +88,7 @@ export default async function AdminDashboardPage() {
                 return (
                   <TableRow key={lead.id}>
                     <TableCell className="font-medium">{lead.fullName ?? '—'}</TableCell>
-                    <TableCell>{lead.source}</TableCell>
+                    <TableCell>{lead.form?.name ?? lead.source}</TableCell>
                     <TableCell>
                       <Badge
                         variant={

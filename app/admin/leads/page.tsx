@@ -41,7 +41,12 @@ export default async function AdminLeadsPage({
   };
 
   const [leads, roulettes] = await Promise.all([
-    prisma.leadflowLead.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100 }),
+    prisma.leadflowLead.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { form: { select: { name: true } } },
+    }),
     prisma.leadflowRoulette.findMany({ orderBy: { name: 'asc' } }),
   ]);
 
@@ -136,8 +141,10 @@ export default async function AdminLeadsPage({
                     </div>
                     <div className="truncate">{lead.phone ?? '—'}</div>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{lead.source}</Badge>
+                  <TableCell className="max-w-[160px]">
+                    <Badge variant="outline" className="max-w-full">
+                      <span className="truncate">{lead.form?.name ?? lead.source}</span>
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge
