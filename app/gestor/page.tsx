@@ -118,7 +118,7 @@ export default async function GestorDashboardPage() {
         </CardContent>
       </Card>
 
-      <LeadDeepLink variant="simple" />
+      <LeadDeepLink variant="full" />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { Prisma, type LeadflowForm } from '@prisma/client';
 import { prisma } from './prisma';
 import { assignLead } from './roulette';
-import { notifyLeadAssigned } from './lead-notifications';
+import { notifyLeadAssigned, notifyLeadReregistered } from './lead-notifications';
 
 type ExtractedLead = { fullName: string | null; email: string | null; phone: string | null; notes: string | null };
 
@@ -107,14 +107,22 @@ async function createAssignedLead(params: {
   formName: string | null;
   rouletteId: string | null;
   defaultUserId: string | null;
+  /** Quando o formulário externo informa a data real do cadastro (ex: `created_time` do Meta),
+   * usamos ela como `createdAt` em vez do momento em que processamos o webhook — evita que um
+   * atraso na entrega (ou um backfill/sync) mostre um horário de recebimento errado. */
+  occurredAt?: Date | null;
 }) {
-  const { fullName, email, phone, notes, source, rawPayload, formId, formName, rouletteId, defaultUserId } = params;
+  const { fullName, email, phone, notes, source, rawPayload, formId, formName, rouletteId, defaultUserId, occurredAt } =
+    params;
   const rawPayloadJson = (rawPayload ?? {}) as Prisma.InputJsonValue;
+  const createdAt = occurredAt ?? undefined;
 
   const duplicate = await findRecentDuplicate(email, phone);
-  if (duplicate) {
-    // Loga a tentativa mesmo sendo duplicata, mas não dispara a roleta de novo.
-    await prisma.leadflowLead.create({
+  if (duplicate?.assignedUserId) {
+    // Recadastro: mesmo e-mail/telefone nos últimos 30 dias E já tinha corretor — cai sempre
+    // pro mesmo corretor (não roda a roleta de novo) e dispara uma notificação diferente da de
+    // lead novo, pra deixar claro que é um contato que já existia.
+    const lead = await prisma.leadflowLead.create({
       data: {
         fullName,
         email,
@@ -123,11 +131,24 @@ async function createAssignedLead(params: {
         source,
         rawPayload: rawPayloadJson,
         formId,
-        status: 'NEW',
-        errorReason: `duplicado_30_dias:${duplicate.id}`,
+        roletaId: duplicate.roletaId,
+        assignedUserId: duplicate.assignedUserId,
+        status: 'ASSIGNED',
+        assignedAt: new Date(),
+        errorReason: `recadastro:${duplicate.id}`,
+        createdAt,
       },
     });
-    return { status: 'DUPLICATE' as const, existingLeadId: duplicate.id };
+
+    await notifyLeadReregistered({
+      leadId: lead.id,
+      assignedUserId: duplicate.assignedUserId,
+      leadName: fullName,
+      formName,
+      source,
+    });
+
+    return { status: 'REREGISTERED' as const, lead };
   }
 
   const assignment = await assignLead({ rouletteId, defaultUserId });
@@ -146,6 +167,7 @@ async function createAssignedLead(params: {
       status: assignment.status === 'ASSIGNED' ? 'ASSIGNED' : 'ERROR',
       errorReason: assignment.status === 'ERROR' ? assignment.errorReason : null,
       assignedAt: assignment.status === 'ASSIGNED' ? new Date() : null,
+      createdAt,
     },
   });
 
@@ -160,6 +182,15 @@ async function createAssignedLead(params: {
   }
 
   return { status: 'CREATED' as const, lead };
+}
+
+/** Extrai a data real de cadastro quando o payload traz (`created_time` do Meta Lead Ads). */
+function extractOccurredAt(rawPayload: unknown): Date | null {
+  if (typeof rawPayload !== 'object' || rawPayload === null) return null;
+  const value = (rawPayload as Record<string, unknown>).created_time;
+  if (typeof value !== 'string') return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /** Captura via webhook: extrai campos do payload cru usando os fieldMappings do form. */
@@ -179,6 +210,7 @@ export async function intakeLead(params: { form: LeadflowForm; rawPayload: unkno
     formName: form.name,
     rouletteId: form.roletaId,
     defaultUserId: form.defaultUserId,
+    occurredAt: extractOccurredAt(rawPayload),
   });
 }
 

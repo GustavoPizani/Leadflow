@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { listLocalUsersByIds } from '@/lib/local-users';
 import { ReassignLead } from '@/components/admin/reassign-lead';
+import { LeadRow, RowActionGuard } from '@/components/admin/lead-row';
 import { LeadDeepLink } from '@/components/lead-deep-link';
 import { MiniAvatar } from '@/components/mini-avatar';
 import { Badge } from '@/components/ui/badge';
@@ -124,16 +124,11 @@ export default async function AdminLeadsPage({
             {leads.map((lead) => {
               const user = lead.assignedUserId ? localUserById.get(lead.assignedUserId) : null;
               return (
-                <TableRow key={lead.id}>
+                <LeadRow key={lead.id} href={leadHref(lead.id)}>
                   <TableCell className="max-w-[220px] font-medium">
-                    <Link
-                      href={leadHref(lead.id)}
-                      scroll={false}
-                      className="block truncate hover:underline"
-                      title={lead.fullName ?? undefined}
-                    >
+                    <span className="block truncate" title={lead.fullName ?? undefined}>
                       {lead.fullName ?? '—'}
-                    </Link>
+                    </span>
                   </TableCell>
                   <TableCell className="max-w-[220px] text-sm text-muted-foreground">
                     <div className="truncate" title={lead.email ?? undefined}>
@@ -176,9 +171,11 @@ export default async function AdminLeadsPage({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{formatDate(lead.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    <ReassignLead leadId={lead.id} leadName={lead.fullName} />
+                    <RowActionGuard>
+                      <ReassignLead leadId={lead.id} leadName={lead.fullName} />
+                    </RowActionGuard>
                   </TableCell>
-                </TableRow>
+                </LeadRow>
               );
             })}
             {leads.length === 0 && (
@@ -192,7 +189,7 @@ export default async function AdminLeadsPage({
         </Table>
       </Card>
 
-      <LeadDeepLink variant="simple" />
+      <LeadDeepLink variant="full" />
     </div>
   );
 }
