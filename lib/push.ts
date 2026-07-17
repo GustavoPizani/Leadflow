@@ -1,3 +1,4 @@
+import webpush from 'web-push';
 import { prisma } from './prisma';
 
 /**
@@ -20,7 +21,6 @@ export async function sendPushToUser(
   const subs = await prisma.leadflowPushSubscription.findMany({ where: { userId } });
   if (subs.length === 0) return;
 
-  const webpush = await import('web-push');
   webpush.setVapidDetails(`mailto:${vapidEmail}`, publicKey, privateKey);
 
   const body = JSON.stringify({ title: payload.title, body: payload.body, data: payload.data ?? {} });
