@@ -32,6 +32,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'ignored' });
   }
 
+  // Idempotência: o Real-Sales pode repassar o MESMO evento de leadgen mais de uma vez (ex:
+  // reenvio do webhook, cron de fallback rodando de novo antes de marcar como sincronizado).
+  // Sem isso, cada repetição virava um "recadastro" novo — mesmo lead, notificação repetida.
+  const alreadyProcessed = await prisma.leadflowLead.findFirst({
+    where: { rawPayload: { path: ['id'], equals: leadgenId } },
+    select: { id: true },
+  });
+  if (alreadyProcessed) {
+    return NextResponse.json({ status: 'already_processed' });
+  }
+
   try {
     const lead = await getLeadDetail(leadgenId, form.metaConnection.pageAccessToken);
     const result = await intakeLead({ form, rawPayload: lead });
