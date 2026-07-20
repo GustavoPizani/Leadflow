@@ -11,10 +11,15 @@ function formatDate(d: Date) {
 }
 
 export default async function AdminDashboardPage() {
-  const [total, byStatus, sourceRows, recentLeads] = await Promise.all([
+  const [total, byStatus, sourceRows, byBrokerRaw, recentLeads] = await Promise.all([
     prisma.leadflowLead.count(),
     prisma.leadflowLead.groupBy({ by: ['status'], _count: true }),
     prisma.leadflowLead.findMany({ select: { source: true, form: { select: { name: true } } } }),
+    prisma.leadflowLead.groupBy({
+      by: ['assignedUserId'],
+      where: { assignedUserId: { not: null } },
+      _count: true,
+    }),
     prisma.leadflowLead.findMany({
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -22,9 +27,19 @@ export default async function AdminDashboardPage() {
     }),
   ]);
 
-  const assignedIds = recentLeads.map((l) => l.assignedUserId).filter((id): id is string => !!id);
+  const assignedIds = [
+    ...recentLeads.map((l) => l.assignedUserId),
+    ...byBrokerRaw.map((b) => b.assignedUserId),
+  ].filter((id): id is string => !!id);
   const localUsers = await listLocalUsersByIds(assignedIds);
   const localUserById = new Map(localUsers.map((u) => [u.id, u]));
+
+  const byBroker = byBrokerRaw
+    .map((row) => ({
+      label: row.assignedUserId ? localUserById.get(row.assignedUserId)?.name ?? row.assignedUserId : '—',
+      count: row._count,
+    }))
+    .sort((a, b) => b.count - a.count);
 
   const statusCount = Object.fromEntries(byStatus.map((s) => [s.status, s._count]));
 
@@ -64,6 +79,20 @@ export default async function AdminDashboardPage() {
             </Badge>
           ))}
           {bySource.length === 0 && <p className="text-sm text-muted-foreground">Sem dados ainda.</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Leads por corretor</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {byBroker.map((b) => (
+            <Badge key={b.label} variant="outline">
+              {b.label}: {b.count}
+            </Badge>
+          ))}
+          {byBroker.length === 0 && <p className="text-sm text-muted-foreground">Sem leads atribuídos ainda.</p>}
         </CardContent>
       </Card>
 

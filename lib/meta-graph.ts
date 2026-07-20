@@ -143,3 +143,43 @@ export async function listFormLeads(
   );
   return { data: result.data, nextAfter: result.paging?.cursors?.after ?? null };
 }
+
+/** Igual a FbLead, mas pedindo também os campos de atribuição (anúncio/conjunto/campanha) —
+ * usado pra alimentar planilhas que esperam essas colunas (ex: export estilo Meta CRM Sync). */
+export type FbLeadExtended = FbLead & {
+  ad_id?: string;
+  adset_id?: string;
+  campaign_id?: string;
+  form_id?: string;
+  is_organic?: boolean;
+  platform?: string;
+};
+
+export async function listFormLeadsExtended(
+  formId: string,
+  pageToken: string,
+  after?: string,
+): Promise<{ data: FbLeadExtended[]; nextAfter: string | null }> {
+  const result = await graphGet<{ data: FbLeadExtended[]; paging?: { cursors?: { after?: string } } }>(
+    `/${formId}/leads`,
+    pageToken,
+    {
+      fields:
+        'id,created_time,ad_id,adset_id,campaign_id,form_id,is_organic,platform,field_data',
+      limit: '100',
+      ...(after ? { after } : {}),
+    },
+  );
+  return { data: result.data, nextAfter: result.paging?.cursors?.after ?? null };
+}
+
+/** Nome de um objeto do Graph API (anúncio/conjunto/campanha) — usado só pra preencher as
+ * colunas *_name da planilha; quem chama deve memoizar por id, já que se repete por lead. */
+export async function getObjectName(id: string, pageToken: string): Promise<string> {
+  try {
+    const result = await graphGet<{ name?: string }>(`/${id}`, pageToken, { fields: 'name' });
+    return result.name ?? '';
+  } catch {
+    return '';
+  }
+}
