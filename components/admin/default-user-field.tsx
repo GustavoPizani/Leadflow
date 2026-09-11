@@ -8,7 +8,15 @@ import type { LeadflowLocalUser } from '@prisma/client';
 /** Campo de formulário nativo (participa do FormData via input hidden) que usa o LocalUserPicker para escolher o defaultUserId. */
 export function DefaultUserField({ initial }: { initial?: { id: string; name: string; email: string } | null }) {
   const [selected, setSelected] = useState<LeadflowLocalUser | null>(
-    initial ? { id: initial.id, name: initial.name, email: initial.email, createdAt: new Date() } : null,
+    initial
+      ? {
+          id: initial.id,
+          name: initial.name,
+          email: initial.email,
+          role: 'CORRETOR',
+          createdAt: new Date(),
+        }
+      : null,
   );
 
   return (
