@@ -13,7 +13,9 @@ export default async function GestorLayout({ children }: { children: React.React
   if (!user) redirect('/login');
 
   const access = await getCurrentAccess(user.id);
-  if (access.level !== 'GESTOR') redirect(homeRouteForLevel(access.level));
+  if (access.level !== 'GESTOR' && access.level !== 'DIRETOR') {
+    redirect(homeRouteForLevel(access.level));
+  }
 
   return (
     <NavShell title="Leadflow" links={LINKS}>

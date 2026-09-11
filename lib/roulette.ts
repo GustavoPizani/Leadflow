@@ -4,6 +4,14 @@ export type RouletteAssignment =
   | { status: 'ASSIGNED'; userId: string }
   | { status: 'ERROR'; errorReason: string };
 
+function parseHourToMinutes(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
+  if (!match) return null;
+  const [, hour, minute] = match;
+  return Number(hour) * 60 + Number(minute);
+}
+
 /**
  * Escolhe o próximo destinatário de uma roleta de forma atômica e sem
  * condição de corrida com leads simultâneos. `leadflow_roulette_members` é
@@ -64,6 +72,13 @@ async function isRouletteUsable(rouletteId: string): Promise<boolean> {
   const now = new Date();
   if (roulette.validFrom && now < roulette.validFrom) return false;
   if (roulette.validUntil && now > roulette.validUntil) return false;
+
+  const startM = parseHourToMinutes(roulette.startTime);
+  const endM = parseHourToMinutes(roulette.endTime);
+  if (startM !== null && endM !== null) {
+    const nowM = now.getHours() * 60 + now.getMinutes();
+    if (nowM < startM || nowM > endM) return false;
+  }
 
   return true;
 }

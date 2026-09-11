@@ -13,7 +13,11 @@ export async function createTeamWithNewManager(params: { teamName: string; manag
     throw new Error('Nome da equipe, nome e e-mail do gestor são obrigatórios.');
   }
 
-  const { localUser, tempPassword } = await createLocalUser({ name: managerName, email: managerEmail });
+  const { localUser, tempPassword } = await createLocalUser({
+    name: managerName,
+    email: managerEmail,
+    role: 'GESTOR',
+  });
 
   const team = await prisma.leadflowTeam.create({
     data: { name: teamName, managerId: localUser.id },
@@ -39,7 +43,7 @@ export async function addNewTeamMember(params: { teamId: string; name: string; e
   const { teamId, name, email } = params;
   if (!teamId || !name.trim() || !email.trim()) throw new Error('Dados inválidos.');
 
-  const { localUser, tempPassword } = await createLocalUser({ name, email });
+  const { localUser, tempPassword } = await createLocalUser({ name, email, role: 'CORRETOR' });
 
   await prisma.leadflowTeamMember.create({ data: { teamId, userId: localUser.id } });
 

@@ -27,12 +27,23 @@ enum LeadflowLeadStatus {
 }
 
 model LeadflowRoulette {
-  id          String    @id @default(cuid())
-  name        String
-  isActive    Boolean   @default(true)
-  validFrom   DateTime?
-  validUntil  DateTime?
-  createdAt   DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  name               String
+  isActive           Boolean   @default(true)
+  validFrom          DateTime?
+  validUntil         DateTime?
+  startTime          String    @default("08:00")
+  endTime            String    @default("20:00")
+  holdingStartTime   String    @default("20:00")
+  holdingEndTime     String    @default("08:00")
+  drawTimes          String    @default("09:00,14:00,18:00")
+  drawCountPerDay    Int       @default(3)
+  joinSlug           String?   @unique
+  joinLinkActive     Boolean   @default(false)
+  joinWindowMinutes  Int       @default(30)
+  joinExpiresAt      DateTime?
+  lastDrawAt         DateTime?
+  createdAt          DateTime  @default(now())
 
   members LeadflowRouletteMember[]
   forms   LeadflowForm[]
@@ -138,6 +149,7 @@ model LeadflowLocalUser {
   id        String   @id
   name      String
   email     String   @unique
+  role      String   @default("CORRETOR")
   createdAt DateTime @default(now())
 
   @@map("leadflow_local_users")

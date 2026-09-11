@@ -3,6 +3,7 @@ import { prisma } from './prisma';
 export type AccessLevel =
   | { level: 'ADMIN' }
   | { level: 'GESTOR'; teamIds: string[] }
+  | { level: 'DIRETOR'; teamIds: string[] }
   | { level: 'USUARIO' };
 
 /**
@@ -12,6 +13,16 @@ export type AccessLevel =
 export async function getAccessLevel(userId: string): Promise<AccessLevel> {
   const admin = await prisma.leadflowAdminUser.findUnique({ where: { userId } });
   if (admin) return { level: 'ADMIN' };
+
+  const localUser = await prisma.leadflowLocalUser.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (localUser?.role === 'DIRETOR') {
+    const allTeams = await prisma.leadflowTeam.findMany({ select: { id: true } });
+    return { level: 'DIRETOR', teamIds: allTeams.map((t) => t.id) };
+  }
 
   const teams = await prisma.leadflowTeam.findMany({
     where: { managerId: userId },
@@ -27,6 +38,7 @@ export function homeRouteForLevel(level: AccessLevel['level']): string {
     case 'ADMIN':
       return '/admin';
     case 'GESTOR':
+    case 'DIRETOR':
       return '/gestor';
     case 'USUARIO':
       return '/app';

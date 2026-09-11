@@ -17,7 +17,7 @@ export default async function GestorDashboardPage() {
   const { leads, roulettes, localUserById } = user
     ? await (async () => {
         const access = await getCurrentAccess(user.id);
-        const teamIds = access.level === 'GESTOR' ? access.teamIds : [];
+        const teamIds = access.level === 'GESTOR' || access.level === 'DIRETOR' ? access.teamIds : [];
         const memberIds = await getTeamMemberUserIds(teamIds);
 
         const where = await leadWhereForAccess(user.id, access);

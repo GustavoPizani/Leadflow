@@ -18,8 +18,12 @@ function generateTempPassword() {
  * nosso banco) — o middleware barra o acesso ao resto do app até a pessoa trocar a senha em
  * /trocar-senha, que zera essa flag.
  */
-export async function createLocalUser(params: { name: string; email: string }) {
-  const { name, email } = params;
+export async function createLocalUser(params: {
+  name: string;
+  email: string;
+  role?: 'GESTOR' | 'DIRETOR' | 'CORRETOR';
+}) {
+  const { name, email, role = 'CORRETOR' } = params;
   const tempPassword = generateTempPassword();
 
   const admin = createAdminClient();
@@ -36,7 +40,7 @@ export async function createLocalUser(params: { name: string; email: string }) {
 
   try {
     const localUser = await prisma.leadflowLocalUser.create({
-      data: { id: data.user.id, name, email },
+      data: { id: data.user.id, name, email, role },
     });
     return { localUser, tempPassword };
   } catch (err) {

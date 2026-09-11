@@ -17,6 +17,16 @@ export async function saveRoulette(params: {
   constante: boolean;
   validFrom: string | null;
   validUntil: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  holdingStartTime?: string | null;
+  holdingEndTime?: string | null;
+  drawTimes?: string | null;
+  drawCountPerDay?: number | null;
+  joinSlug?: string | null;
+  joinLinkActive?: boolean | null;
+  joinWindowMinutes?: number | null;
+  joinExpiresAt?: string | null;
   memberIds: string[];
 }) {
   await requireAdmin();
@@ -26,16 +36,41 @@ export async function saveRoulette(params: {
 
   const validFrom = params.constante || !params.validFrom ? null : new Date(params.validFrom);
   const validUntil = params.constante || !params.validUntil ? null : new Date(params.validUntil);
+  const startTime = params.startTime?.trim() || '08:00';
+  const endTime = params.endTime?.trim() || '20:00';
+  const holdingStartTime = params.holdingStartTime?.trim() || '20:00';
+  const holdingEndTime = params.holdingEndTime?.trim() || '08:00';
+  const drawTimes = params.drawTimes?.trim() || '09:00,14:00,18:00';
+  const drawCountPerDay = params.drawCountPerDay ?? 3;
+  const joinWindowMinutes = params.joinWindowMinutes ?? 30;
+  const joinSlug = params.joinSlug?.trim() || null;
+  const joinLinkActive = params.joinLinkActive ?? false;
+  const joinExpiresAt = params.joinExpiresAt ? new Date(params.joinExpiresAt) : null;
   const memberIds = Array.from(new Set(params.memberIds));
+
+  const data = {
+    name,
+    isActive: params.isActive,
+    validFrom,
+    validUntil,
+    startTime,
+    endTime,
+    holdingStartTime,
+    holdingEndTime,
+    drawTimes,
+    drawCountPerDay,
+    joinSlug,
+    joinLinkActive,
+    joinWindowMinutes,
+    joinExpiresAt,
+  };
 
   const roulette = params.id
     ? await prisma.leadflowRoulette.update({
         where: { id: params.id },
-        data: { name, isActive: params.isActive, validFrom, validUntil },
+        data,
       })
-    : await prisma.leadflowRoulette.create({
-        data: { name, isActive: params.isActive, validFrom, validUntil },
-      });
+    : await prisma.leadflowRoulette.create({ data });
 
   const existing = await prisma.leadflowRouletteMember.findMany({
     where: { rouletteId: roulette.id },

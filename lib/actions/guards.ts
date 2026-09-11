@@ -13,12 +13,17 @@ export async function requireAdmin(): Promise<string> {
 }
 
 /** Toda server action de mutação em /gestor deve chamar isso primeiro. */
-export async function requireGestor(): Promise<{ userId: string; access: AccessLevel & { level: 'GESTOR' } }> {
+export async function requireGestor(): Promise<{
+  userId: string;
+  access: AccessLevel & { level: 'GESTOR' | 'DIRETOR' };
+}> {
   const user = await getCurrentUser();
   if (!user) throw new Error('Não autenticado.');
 
   const access = await getCurrentAccess(user.id);
-  if (access.level !== 'GESTOR') throw new Error('Acesso negado.');
+  if (access.level !== 'GESTOR' && access.level !== 'DIRETOR') {
+    throw new Error('Acesso negado.');
+  }
 
   return { userId: user.id, access };
 }

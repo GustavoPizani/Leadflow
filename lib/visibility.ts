@@ -21,7 +21,7 @@ export async function getTeamMemberUserIds(teamIds: string[]): Promise<string[]>
  * leads do sistema, sem exceção:
  * - ADMIN: sem filtro (mas o admin nunca aparece como `assignedUserId` de
  *   ninguém, já que ele nunca é oferecido como membro de roleta/equipe).
- * - GESTOR: só leads atribuídos a membros das equipes que ele gerencia.
+ * - GESTOR/DIRETOR: só leads atribuídos a membros das equipes que o gestor/diretor consegue ver.
  * - USUARIO: só os próprios leads.
  */
 export async function leadWhereForAccess(
@@ -31,7 +31,8 @@ export async function leadWhereForAccess(
   switch (access.level) {
     case 'ADMIN':
       return {};
-    case 'GESTOR': {
+    case 'GESTOR':
+    case 'DIRETOR': {
       const memberIds = await getTeamMemberUserIds(access.teamIds);
       return { assignedUserId: { in: memberIds } };
     }
