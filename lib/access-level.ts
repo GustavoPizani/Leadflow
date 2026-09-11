@@ -19,16 +19,23 @@ export async function getAccessLevel(userId: string): Promise<AccessLevel> {
     select: { role: true },
   });
 
+  const teams = await prisma.leadflowTeam.findMany({
+    where: { managerId: userId },
+    select: { id: true },
+  });
+
+  if (localUser?.role === 'GESTOR' && teams.length > 0) {
+    return { level: 'GESTOR', teamIds: teams.map((t) => t.id) };
+  }
+
   if (localUser?.role === 'DIRETOR') {
     const allTeams = await prisma.leadflowTeam.findMany({ select: { id: true } });
     return { level: 'DIRETOR', teamIds: allTeams.map((t) => t.id) };
   }
 
-  const teams = await prisma.leadflowTeam.findMany({
-    where: { managerId: userId },
-    select: { id: true },
-  });
-  if (teams.length > 0) return { level: 'GESTOR', teamIds: teams.map((t) => t.id) };
+  if (teams.length > 0) {
+    return { level: 'GESTOR', teamIds: teams.map((t) => t.id) };
+  }
 
   return { level: 'USUARIO' };
 }
