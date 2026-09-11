@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isSupabaseConfigured, mockUpdateSession } from './mock-auth';
 
 export async function updateSession(request: NextRequest) {
+  if (!isSupabaseConfigured()) {
+    return mockUpdateSession(request) as any;
+  }
+
   let response = NextResponse.next({ request: { headers: request.headers } });
 
   const supabase = createServerClient(

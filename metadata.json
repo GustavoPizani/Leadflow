@@ -1,0 +1,6 @@
+{
+  "name": "Leadflow",
+  "description": "Captura e distribuição inteligente de leads com roleta e integrações",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

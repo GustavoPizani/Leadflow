@@ -1,0 +1,114 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getUserFromToken } from '@/lib/auth'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  const user = await getUserFromToken()
+  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const accountId =
+    (
+      await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { accountId: true },
+      })
+    )?.accountId ?? user.id
+
+  const mappings = await prisma.facebookFormMapping.findMany({
+    where: { connection: { accountId } },
+    include: {
+      connection: { select: { pageName: true, pageId: true } },
+      property: { select: { id: true, title: true } },
+      funnel: { select: { id: true, name: true } },
+      funnelStage: { select: { id: true, name: true } },
+      defaultBroker: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  // roletaId não tem relação declarada no schema (é uma referência solta) — busca os nomes à parte
+  const roletaIds = Array.from(new Set(mappings.map((m) => m.roletaId).filter((id): id is string => !!id)))
+  const roulettes = roletaIds.length
+    ? await prisma.leadRoulette.findMany({ where: { id: { in: roletaIds } }, select: { id: true, name: true } })
+    : []
+  const rouletteById = new Map(roulettes.map((r) => [r.id, r]))
+
+  const mappingsWithRoulette = mappings.map((m) => ({
+    ...m,
+    roulette: m.roletaId ? rouletteById.get(m.roletaId) ?? null : null,
+  }))
+
+  return NextResponse.json({ mappings: mappingsWithRoulette })
+}
+
+export async function POST(request: NextRequest) {
+  const user = await getUserFromToken()
+  if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const body = await request.json()
+  const {
+    connectionId,
+    formId,
+    formName,
+    pageId,
+    propertyId,
+    roletaId,
+    funnelId,
+    funnelStageId,
+    agencia,
+    praca,
+    defaultBrokerId,
+    fieldMappings,
+    syncLeads,
+  } = body
+
+  if (!connectionId || !formId || !formName) {
+    return NextResponse.json(
+      { error: 'Campos obrigatórios: connectionId, formId, formName' },
+      { status: 400 }
+    )
+  }
+
+  // Funil/Etapa só são obrigatórios sem roleta — com roleta, o lead herda o funil dela.
+  if (!roletaId && (!funnelId || !funnelStageId)) {
+    return NextResponse.json(
+      { error: 'Sem uma roleta selecionada, Funil e Etapa são obrigatórios.' },
+      { status: 400 }
+    )
+  }
+
+  const mapping = await prisma.facebookFormMapping.upsert({
+    where: { formId },
+    update: {
+      formName,
+      pageId,
+      propertyId: propertyId || null,
+      roletaId: roletaId || null,
+      funnelId: funnelId || null,
+      funnelStageId: funnelStageId || null,
+      agencia: agencia || null,
+      praca: praca || null,
+      defaultBrokerId: defaultBrokerId || null,
+      fieldMappings: fieldMappings ?? undefined,
+      isActive: true,
+    },
+    create: {
+      connectionId,
+      formId,
+      formName,
+      pageId: pageId || '',
+      propertyId: propertyId || null,
+      roletaId: roletaId || null,
+      funnelId: funnelId || null,
+      funnelStageId: funnelStageId || null,
+      agencia: agencia || null,
+      praca: praca || null,
+      defaultBrokerId: defaultBrokerId || null,
+      fieldMappings: fieldMappings ?? undefined,
+    },
+  })
+
+  return NextResponse.json({ mapping, syncPending: !!syncLeads })
+}

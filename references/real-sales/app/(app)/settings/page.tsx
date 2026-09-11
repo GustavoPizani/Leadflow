@@ -1,0 +1,1215 @@
+// c:\Users\gusta\Real-sales\app\(app)\settings\page.tsx
+"use client";
+
+import React, { useState, useEffect, useCallback, ReactNode } from "react";
+import { useAuth } from "@/contexts/auth-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { User as UserIcon, Bell, Shield, Users, Plus, Trash2, Edit, Upload, Download, FileText, Loader2, CheckCircle, XCircle, ListX, Eye, EyeOff, KeyRound, Copy, Sun } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { type User, USER_ROLE_LABELS, Role } from "@/lib/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { format } from 'date-fns';
+
+import Papa from 'papaparse';
+
+interface RoleSetting {
+  roleName: Role;
+  isActive: boolean;
+}
+
+interface HierarchyUser {
+  id: string;
+  name: string;
+}
+
+// --- Sub-componente: Gestão de Cargos ---
+function RoleManagementCard({ settings, onUpdate }: { settings: RoleSetting[], onUpdate: () => void }) {
+    const { toast } = useToast();
+
+    const handleToggleRole = async (roleName: Role, isActive: boolean) => {
+        try {
+            const token = localStorage.getItem('authToken');
+            const response = await fetch('/api/role-settings', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ roleName, isActive }),
+            });
+            if (!response.ok) throw new Error('Falha ao atualizar o cargo.');
+            toast({ title: 'Sucesso!', description: 'Status do cargo atualizado.' });
+            onUpdate();
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível atualizar o cargo.' });
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Gestão de Cargos da Hierarquia</CardTitle>
+                <CardDescription>Ative ou desative cargos para adaptar a pirâmide à sua imobiliária.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {settings.map(setting => (
+                    <div key={setting.roleName} className="flex items-center justify-between rounded-lg border p-4">
+                        <Label htmlFor={`role-${setting.roleName}`} className="font-medium">
+                            {USER_ROLE_LABELS[setting.roleName]}
+                        </Label>
+                        <Switch
+                            id={`role-${setting.roleName}`}
+                            checked={setting.isActive}
+                            onCheckedChange={(checked) => handleToggleRole(setting.roleName, checked)}
+                        />
+                    </div>
+                ))}
+            </CardContent>
+        </Card>
+    );
+}
+function ProfileTab() {
+  const { user, setUser } = useAuth();
+  const { toast } = useToast();
+  const [formData, setFormData] = useState({ name: '', email: '' });
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setFormData({ name: user.name, email: user.email });
+    }
+  }, [user]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setIsLoading(true);
+    const token = localStorage.getItem('authToken');
+
+    try {
+      const response = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: formData.name, email: formData.email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao atualizar perfil.');
+      }
+
+      const updatedUserData = await response.json();
+      
+      setUser(prevUser => prevUser ? { ...prevUser, ...updatedUserData.user } : null);
+
+      toast({ title: 'Sucesso!', description: 'Perfil atualizado com sucesso.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: error.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!user) {
+    return <Card><CardContent className="p-6">Carregando...</CardContent></Card>;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Perfil</CardTitle>
+        <CardDescription>Atualize as informações da sua conta.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Nome</Label>
+            <Input id="name" name="name" value={formData.name} onChange={handleChange} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} />
+          </div>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Salvando...' : 'Salvar Alterações'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AppearanceTab() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Aparência</CardTitle>
+        <CardDescription>Escolha o tema padrão do sistema.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ThemeToggle />
+      </CardContent>
+    </Card>
+  );
+}
+
+function TeamManagementTab() {
+    const { user: currentUser } = useAuth();
+    const { toast } = useToast();
+    const [users, setUsers] = useState<User[]>([]);
+    const [roleSettings, setRoleSettings] = useState<RoleSetting[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState<User | null>(null);
+
+    interface UserFormData { name: string; email: string; password?: string; role: Role; supervisorId?: string | null; }
+    const [userForm, setUserForm] = useState<UserFormData>({ name: '', email: '', role: Role.BROKER, supervisorId: null });
+    const [showUserPassword, setShowUserPassword] = useState(false);
+
+    const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
+    const [resetMessage, setResetMessage] = useState<string | null>(null);
+    const [isResetting, setIsResetting] = useState(false);
+
+    interface ClientsByFunnel { funnelId: string; funnelName: string; count: number; }
+    const [transferDialogUser, setTransferDialogUser] = useState<User | null>(null);
+    const [transferClientCount, setTransferClientCount] = useState(0);
+    const [transferNoteCount, setTransferNoteCount] = useState(0);
+    const [transferTaskCount, setTransferTaskCount] = useState(0);
+    const [transferClientsByFunnel, setTransferClientsByFunnel] = useState<ClientsByFunnel[]>([]);
+    const [transferTargetUserId, setTransferTargetUserId] = useState("");
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [usersRes, rolesRes] = await Promise.all([
+                fetch('/api/users'),
+                fetch('/api/role-settings')
+            ]);
+
+            if (!usersRes.ok) throw new Error('Falha ao buscar utilizadores');
+
+            const usersData = await usersRes.json();
+            setUsers(usersData.users || []);
+
+            if (rolesRes.ok) {
+                const rolesData = await rolesRes.json();
+                setRoleSettings(rolesData.settings || []);
+            }
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível carregar os dados da página.' });
+        } finally {
+            setLoading(false);
+        }
+    }, [toast]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+
+
+    const openDialog = (user: User | null = null) => {
+        if (user) {
+            // Editing logic can be expanded here if needed
+            setEditingUser(user);
+            toast({ title: "Info", description: "A edição de hierarquia ainda não está implementada neste formulário."})
+            setUserForm({
+                name: user.name,
+                email: user.email,
+                password: '',
+                role: user.role,
+                supervisorId: user.supervisorId || ''
+            });
+        } else {
+            // Reset for new user
+            setEditingUser(null);
+            setUserForm({ name: '', email: '', password: '', role: Role.BROKER, supervisorId: null });
+        }
+        setIsDialogOpen(true);
+    };
+
+    const handleDelete = async (userId: string, transferToUserId?: string) => {
+        if (!transferToUserId && !window.confirm('Tem a certeza que deseja excluir este utilizador? Esta ação é irreversível.')) return;
+        const token = localStorage.getItem('authToken');
+        setIsDeleting(true);
+        setDeletingUserId(userId);
+        try {
+            const response = await fetch(`/api/users/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(transferToUserId ? { transferToUserId } : {}),
+            });
+
+            if (response.status === 404) {
+                // Já foi excluído (ex.: outra aba/clique duplicado) — apenas remove da lista local.
+                setUsers(prev => prev.filter(u => u.id !== userId));
+                setTransferDialogUser(null);
+                return;
+            }
+
+            const data = await response.json();
+            if (!response.ok) {
+                if (data.requiresTransfer) {
+                    const targetUser = users.find(u => u.id === userId) || null;
+                    setTransferDialogUser(targetUser);
+                    setTransferClientCount(data.clientCount || 0);
+                    setTransferNoteCount(data.noteCount || 0);
+                    setTransferTaskCount(data.taskCount || 0);
+                    setTransferClientsByFunnel(data.clientsByFunnel || []);
+                    setTransferTargetUserId("");
+                    return;
+                }
+                throw new Error(data.error || 'Falha ao excluir utilizador.');
+            }
+            toast({ title: 'Sucesso!', description: 'Usuário deletado.' });
+            setTransferDialogUser(null);
+            setUsers(prev => prev.filter(u => u.id !== userId));
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Erro', description: error.message });
+        } finally {
+            setIsDeleting(false);
+            setDeletingUserId(null);
+        }
+    };
+
+    const handleConfirmTransferAndDelete = async () => {
+        if (!transferDialogUser || !transferTargetUserId) return;
+        await handleDelete(transferDialogUser.id, transferTargetUserId);
+    };
+
+    const resetForm = () => {
+        setUserForm({ name: '', email: '', password: '', role: Role.BROKER, supervisorId: null });
+        setEditingUser(null);
+        setIsDialogOpen(false);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const token = localStorage.getItem('authToken');
+        const method = editingUser ? 'PATCH' : 'POST';
+        const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
+
+        const finalSuperiorId = userForm.role === Role.BROKER ? userForm.supervisorId : null;
+
+        const body: Record<string, any> = {
+            name: userForm.name,
+            email: userForm.email,
+            role: userForm.role,
+            supervisorId: finalSuperiorId
+        };
+
+        // Na edição, senha é opcional (só sobrescreve se preenchida).
+        // Na criação, a senha temporária é sempre gerada pelo servidor.
+        if (editingUser && userForm.password) {
+            body.password = userForm.password;
+        }
+
+        try {
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(body),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Falha ao salvar usuário.');
+            }
+
+            if (!editingUser) {
+                // Usuário criado: mostra a senha temporária + mensagem pronta para WhatsApp.
+                setResetPasswordUser(data as User);
+                setResetMessage(data.message);
+            } else {
+                toast({ title: 'Sucesso!', description: 'Usuário atualizado.' });
+            }
+            resetForm();
+            fetchData();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Erro', description: error.message });
+        }
+    };
+
+    const handleResetPassword = async (user: User) => {
+        if (!window.confirm(`Gerar uma nova senha temporária para ${user.name}? A senha atual deixará de funcionar.`)) return;
+        setResetPasswordUser(user);
+        setResetMessage(null);
+        setIsResetting(true);
+        try {
+            const response = await fetch(`/api/users/${user.id}/reset-password`, { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Falha ao gerar nova senha.');
+            setResetMessage(data.message);
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Erro', description: error.message });
+            setResetPasswordUser(null);
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
+    const handleCopyResetMessage = () => {
+        if (!resetMessage) return;
+        navigator.clipboard.writeText(resetMessage);
+        toast({ title: 'Mensagem copiada!' });
+    };
+
+    const closeResetDialog = () => {
+        setResetPasswordUser(null);
+        setResetMessage(null);
+    };
+
+    const getRoleIcon = (role: Role) => {
+        const icons: Partial<Record<Role, React.ReactNode>> = {
+            [Role.MARKETING_ADMIN]: <Shield className="h-4 w-4 text-red-600" />,
+            [Role.BROKER]: <UserIcon className="h-4 w-4 text-green-600" />,
+        };
+        return icons[role] || null;
+    };
+
+    const stats = users.reduce((acc, user) => {
+        acc[user.role] = (acc[user.role] || 0) + 1;
+        return acc;
+    }, {} as Record<Role, number>);
+
+    if (loading) return <Card><CardContent className="p-6">A carregar...</CardContent></Card>;
+
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{users.length}</div></CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Administradores</CardTitle>
+                        <Shield className="h-4 w-4 text-red-500" />
+                    </CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{stats[Role.MARKETING_ADMIN] || 0}</div></CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Corretores</CardTitle>
+                        <UserIcon className="h-4 w-4 text-green-500" />
+                    </CardHeader>
+                    <CardContent><div className="text-2xl font-bold">{stats[Role.BROKER] || 0}</div></CardContent>
+                </Card>
+            </div>
+
+            {currentUser?.role === 'MARKETING_ADMIN' && (
+                <RoleManagementCard settings={roleSettings} onUpdate={fetchData} />
+            )}
+
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Usuários cadastrados</CardTitle>
+                        <CardDescription>Gerencie os Usuários da sua equipa e as suas permissões</CardDescription>
+                    </div>
+                    {currentUser?.role === 'MARKETING_ADMIN' && (
+                        <Button onClick={() => openDialog(null)}><Plus className="h-4 w-4 mr-2" /> Novo Usuário</Button>
+                    )}
+                </CardHeader>
+                <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Utilizador</TableHead>
+                            <TableHead>Cargo</TableHead>
+                            <TableHead>Responsável</TableHead>
+                            <TableHead>Data de Cadastro</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {users.map((user) => (
+                            <TableRow key={user.id}>
+                                <TableCell>
+                                    <div className="font-medium">{user.name}</div>
+                                    <div className="text-sm text-muted-foreground">{user.email}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="outline" className="flex items-center gap-2 w-fit">
+                                        {getRoleIcon(user.role)}
+                                        {USER_ROLE_LABELS[user.role]}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>{user.supervisor?.name || 'N/A'}</TableCell>
+                                <TableCell>{user.createdAt ? format(new Date(user.createdAt), 'dd/MM/yyyy') : '-'}</TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" onClick={() => openDialog(user)}><Edit className="h-4 w-4" /></Button>
+                                    {currentUser?.role === 'MARKETING_ADMIN' && (
+                                        <Button variant="ghost" size="icon" title="Gerar nova senha" onClick={() => handleResetPassword(user)}><KeyRound className="h-4 w-4" /></Button>
+                                    )}
+                                    {currentUser?.id !== user.id && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={deletingUserId === user.id}
+                                            onClick={() => handleDelete(user.id)}
+                                        >
+                                            {deletingUserId === user.id
+                                                ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                                : <Trash2 className="h-4 w-4 text-red-500" />}
+                                        </Button>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                </CardContent>
+            </Card>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{editingUser ? 'Editar Utilizador' : 'Adicionar Novo Utilizador'}</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Formulário para adicionar ou editar usuários.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="name">Nome Completo</Label>
+                            <Input id="name" value={userForm.name} onChange={(e) => setUserForm({...userForm, name: e.target.value})} required />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input id="email" type="email" value={userForm.email} onChange={(e) => setUserForm({...userForm, email: e.target.value})} required />
+                        </div>
+                        {editingUser ? (
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Senha (Opcional)</Label>
+                                <div className="relative">
+                                    <Input id="password" type={showUserPassword ? 'text' : 'password'} placeholder="Deixe em branco para não alterar" onChange={(e) => setUserForm({...userForm, password: e.target.value})} className="pr-10" />
+                                    <button type="button" onClick={() => setShowUserPassword(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                                        {showUserPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">
+                                Uma senha temporária será gerada automaticamente. Você poderá copiá-la e enviar por WhatsApp na próxima tela.
+                            </p>
+                        )}
+                        <div className="space-y-2">
+                            <Label htmlFor="role">Cargo</Label>
+                            <Select value={userForm.role} onValueChange={(value: Role) => {
+                                setUserForm(p => ({...p, role: value, supervisorId: null}));
+                            }}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(USER_ROLE_LABELS)
+                                        .filter(([role]) => role !== 'MARKETING_ADMIN')
+                                        .filter(([role]) => {
+                                            const setting = roleSettings.find(r => r.roleName === role);
+                                            return setting ? setting.isActive : true;
+                                        })
+                                        .map(([role, label]) => (
+                                            <SelectItem key={role} value={role}>{label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {userForm.role === Role.BROKER && (
+                             <div className="space-y-2">
+                                <Label htmlFor="supervisorId">Supervisor (opcional)</Label>
+                                <Select
+                                    value={userForm.supervisorId || '__none__'}
+                                    onValueChange={(value) => setUserForm(p => ({...p, supervisorId: value === '__none__' ? null : value}))}
+                                >
+                                    <SelectTrigger><SelectValue placeholder="Selecione um supervisor" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="__none__">Nenhum</SelectItem>
+                                        {users
+                                            .filter(u => u.id !== editingUser?.id)
+                                            .map(u => (
+                                                <SelectItem key={u.id} value={u.id}>{u.name}{u.role === Role.MARKETING_ADMIN ? ' (Admin)' : ''}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={resetForm}>Cancelar</Button>
+                            <Button type="submit">Salvar</Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={!!resetPasswordUser} onOpenChange={(open) => { if (!open) closeResetDialog(); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Credenciais geradas</DialogTitle>
+                        <DialogDescription>
+                            {resetPasswordUser && `Copie a mensagem abaixo e envie para ${resetPasswordUser.name} pelo WhatsApp.`}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {isResetting ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                        </div>
+                    ) : resetMessage ? (
+                        <div className="space-y-4 pt-2">
+                            <textarea
+                                readOnly
+                                value={resetMessage}
+                                rows={7}
+                                className="w-full rounded-md border border-input bg-background p-3 text-sm resize-none"
+                            />
+                            <Button type="button" className="w-full" onClick={handleCopyResetMessage}>
+                                <Copy className="h-4 w-4 mr-2" /> Copiar mensagem
+                            </Button>
+                        </div>
+                    ) : null}
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={closeResetDialog}>Fechar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={!!transferDialogUser} onOpenChange={(open) => { if (!open) setTransferDialogUser(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Transferir clientes antes de excluir</DialogTitle>
+                        <DialogDescription>
+                            {transferDialogUser && `${transferDialogUser.name} possui ${transferClientCount} cliente(s), ${transferNoteCount} nota(s) e ${transferTaskCount} tarefa(s) associados. Selecione um corretor de destino para transferir tudo antes de excluir o utilizador.`}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {transferClientsByFunnel.length > 0 && (
+                        <div className="rounded-md border border-border bg-muted/30 px-3 py-2 space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">Clientes por funil</p>
+                            {transferClientsByFunnel.map(f => (
+                                <div key={f.funnelId} className="flex items-center justify-between text-sm">
+                                    <span>{f.funnelName}</span>
+                                    <span className="text-muted-foreground">{f.count}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="py-2">
+                        <Label htmlFor="transferTargetUser">Corretor de destino</Label>
+                        <Select value={transferTargetUserId} onValueChange={setTransferTargetUserId}>
+                            <SelectTrigger id="transferTargetUser"><SelectValue placeholder="Selecione um corretor" /></SelectTrigger>
+                            <SelectContent>
+                                {users
+                                    .filter(u => u.id !== transferDialogUser?.id)
+                                    .map(u => (
+                                        <SelectItem key={u.id} value={u.id}>{u.name}{u.role === Role.MARKETING_ADMIN ? ' (Admin)' : ''}</SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => setTransferDialogUser(null)}>Cancelar</Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={!transferTargetUserId || isDeleting}
+                            onClick={handleConfirmTransferAndDelete}
+                        >
+                            {isDeleting ? "Transferindo e excluindo..." : "Transferir e excluir"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
+function SecurityTab() {
+  const { toast } = useToast();
+  const [passwords, setPasswords] = useState({ newPassword: '', confirmPassword: '' });
+  const [isLoading, setIsLoading] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPasswords({ ...passwords, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'As novas senhas não coincidem.' });
+      return;
+    }
+    if (!passwords.newPassword || passwords.newPassword.length < 6) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'A nova senha deve ter pelo menos 6 caracteres.' });
+        return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/users/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: passwords.newPassword }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao alterar a senha.');
+      }
+
+      toast({ title: 'Sucesso!', description: 'Senha alterada com sucesso.' });
+      setPasswords({ newPassword: '', confirmPassword: '' });
+      // TODO: Idealmente, o useAuth() deveria ser atualizado para deslogar o usuário aqui,
+      // ou a página deveria ser recarregada para que o middleware de autenticação redirecione para o login.
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: error.message });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Segurança</CardTitle>
+        <CardDescription>Altere sua senha aqui. Após a alteração, você será desconectado.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="newPassword">Nova Senha</Label>
+            <div className="relative">
+              <Input id="newPassword" name="newPassword" type={showNew ? 'text' : 'password'} value={passwords.newPassword} onChange={handleChange} required className="pr-10" />
+              <button type="button" onClick={() => setShowNew(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+            <div className="relative">
+              <Input id="confirmPassword" name="confirmPassword" type={showConfirm ? 'text' : 'password'} value={passwords.confirmPassword} onChange={handleChange} required className="pr-10" />
+              <button type="button" onClick={() => setShowConfirm(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <Button type="submit" disabled={isLoading}>{isLoading ? 'Salvando...' : 'Alterar Senha'}</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+const REMINDER_OPTIONS = [
+  { value: '0', label: 'No horário exato' },
+  { value: '5', label: '5 minutos antes' },
+  { value: '10', label: '10 minutos antes' },
+  { value: '15', label: '15 minutos antes' },
+  { value: '30', label: '30 minutos antes' },
+  { value: '60', label: '1 hora antes' },
+  { value: '120', label: '2 horas antes' },
+  { value: '1440', label: '1 dia antes' },
+];
+
+function NotificationsTab() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscription, setSubscription] = useState<PushSubscription | null>(null);
+  const [isSupported, setIsSupported] = useState(false);
+  const [reminderMinutes, setReminderMinutes] = useState('30');
+  const [isSavingReminder, setIsSavingReminder] = useState(false);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setIsSupported(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isSupported) return;
+    const registerServiceWorker = async () => {
+      try {
+        const swRegistration = await navigator.serviceWorker.register('/sw.js');
+        const existingSubscription = await swRegistration.pushManager.getSubscription();
+        if (existingSubscription) {
+          setIsSubscribed(true);
+          setSubscription(existingSubscription);
+        }
+      } catch (error) {
+        console.error('Falha ao registrar Service Worker:', error);
+      }
+    };
+    registerServiceWorker();
+  }, [isSupported]);
+
+  // Carrega preferência salva do usuário
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`/api/users/${user.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.taskReminderMinutes !== undefined) {
+          setReminderMinutes(String(data.taskReminderMinutes));
+        }
+      })
+      .catch(() => {});
+  }, [user?.id]);
+
+  const handleToggleNotifications = async (enabled: boolean) => {
+    if (!isSupported || !navigator.serviceWorker.ready) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Notificações push não são suportadas neste navegador.' });
+      return;
+    }
+
+    const swRegistration = await navigator.serviceWorker.ready;
+
+    if (enabled) {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        toast({ variant: 'destructive', title: 'Permissão Negada', description: 'Você precisa permitir as notificações no seu navegador.' });
+        return;
+      }
+
+      try {
+        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        if (!vapidPublicKey) throw new Error('Chave VAPID pública não encontrada.');
+
+        const newSubscription = await swRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidPublicKey,
+        });
+
+        await fetch('/api/notifications/subscribe', {
+          method: 'POST',
+          body: JSON.stringify(newSubscription),
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
+        });
+
+        setSubscription(newSubscription);
+        setIsSubscribed(true);
+        toast({ title: 'Sucesso!', description: 'Inscrição para notificações realizada.' });
+      } catch (error) {
+        console.error('Falha ao se inscrever:', error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível se inscrever para notificações.' });
+        setIsSubscribed(false);
+      }
+    } else if (subscription) {
+      try {
+        await subscription.unsubscribe();
+        await fetch('/api/notifications/subscribe', { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` } });
+        setSubscription(null);
+        setIsSubscribed(false);
+        toast({ title: 'Sucesso!', description: 'Inscrição para notificações removida.' });
+      } catch (error) {
+        console.error('Falha ao cancelar inscrição:', error);
+        toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível remover a inscrição.' });
+        setIsSubscribed(true);
+      }
+    }
+  };
+
+  const handleSaveReminder = async () => {
+    if (!user?.id) return;
+    setIsSavingReminder(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
+        body: JSON.stringify({ taskReminderMinutes: Number(reminderMinutes) }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: 'Salvo!', description: 'Lembrete de tarefas atualizado.' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível salvar a preferência.' });
+    } finally {
+      setIsSavingReminder(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Notificações Push</CardTitle>
+          <CardDescription>Receba alertas no PWA e no navegador mesmo com o app fechado.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="push-notifications" className="font-medium">
+              {isSubscribed ? 'Notificações ativadas' : 'Notificações desativadas'}
+            </Label>
+            <Switch
+              id="push-notifications"
+              checked={isSubscribed}
+              onCheckedChange={handleToggleNotifications}
+              disabled={!isSupported}
+            />
+          </div>
+          {!isSupported && (
+            <p className="text-xs text-muted-foreground mt-2">Seu navegador não suporta notificações push.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Lembrete de Tarefas</CardTitle>
+          <CardDescription>Com quanto tempo de antecedência você quer ser notificado antes de uma tarefa vencer.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {REMINDER_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleSaveReminder} disabled={isSavingReminder}>
+              {isSavingReminder ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Salvar
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            O lembrete chega via push notification. Certifique-se de que as notificações push estão ativadas acima.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function DataImportTab() {
+  const { toast } = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [importResult, setImportResult] = useState<{ successCount: number; errorCount: number; errors: string[] } | null>(null);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setFile(event.target.files[0]);
+      setImportResult(null); // Limpa resultados anteriores ao selecionar novo arquivo
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFile(null);
+    const fileInput = document.getElementById('csv-upload') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = "";
+    }
+  };
+
+  const handleImport = async () => {
+    if (!file) {
+      toast({ variant: "destructive", title: "Nenhum arquivo selecionado." });
+      return;
+    }
+
+    setIsProcessing(true);
+    setImportResult(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch('/api/clients/bulk-import', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` },
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Falha ao importar clientes.");
+      }
+
+      setImportResult(result);
+      toast({ title: "Processamento concluído!", description: `${result.successCount} clientes importados com sucesso.` });
+
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Erro na Importação", description: error.message });
+    } finally {
+      setIsProcessing(false);
+      const fileInput = document.getElementById('csv-upload') as HTMLInputElement;
+      if(fileInput) fileInput.value = ""; // Limpa o input do arquivo
+      setFile(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Importação de Clientes em Massa</CardTitle>
+        <CardDescription>
+          Importe múltiplos clientes de uma vez usando uma planilha CSV.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="p-4 border rounded-lg space-y-3">
+          <h3 className="font-semibold">Passo 1: Baixe a planilha modelo</h3>
+          <p className="text-sm text-muted-foreground">
+            Use este modelo para garantir que os dados estão no formato correto. A coluna 'fullName' é obrigatória.
+          </p>
+          <a href="/api/clients/template" download="modelo_clientes.csv">
+            <Button variant="outline">
+              <Download className="mr-2 h-4 w-4" />
+              Gerar Planilha Modelo (.csv)
+            </Button>
+          </a>
+        </div>
+
+        <div className="p-4 border rounded-lg space-y-3">
+          <h3 className="font-semibold">Passo 2: Faça o upload da sua planilha</h3>
+          <p className="text-sm text-muted-foreground">
+            Selecione o arquivo .csv preenchido para iniciar a importação.
+          </p>
+          <div className="flex items-center gap-2">
+            <Input id="csv-upload" type="file" accept=".csv" onChange={handleFileChange} className="hidden" />
+            <Label
+              htmlFor="csv-upload"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              {file ? (
+                <span className="truncate max-w-[200px]">{file.name}</span>
+              ) : (
+                "Escolher Planilha (.csv)"
+              )}
+            </Label>
+            
+            {file && (
+                <Button variant="ghost" size="icon" onClick={handleRemoveFile} className="text-red-500 hover:text-red-700">
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            )}
+
+            <Button onClick={handleImport} disabled={!file || isProcessing} className="ml-auto">
+              {isProcessing ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processando...</>
+              ) : (
+                <><Upload className="mr-2 h-4 w-4" /> Importar Clientes</>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {importResult && (
+          <Dialog open={!!importResult} onOpenChange={(open) => !open && setImportResult(null)}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Resultado da Importação</DialogTitle>
+                <DialogDescription className="sr-only">
+                    Detalhes do resultado da importação de clientes.
+                </DialogDescription>
+                <DialogDescription>
+                  <div className="flex items-center gap-4 mt-2">
+                    <span className="flex items-center text-green-600"><CheckCircle className="mr-2 h-5 w-5" /> {importResult.successCount} Sucessos</span>
+                    <span className="flex items-center text-red-600"><XCircle className="mr-2 h-5 w-5" /> {importResult.errorCount} Erros</span>
+                  </div>
+                </DialogDescription>
+              </DialogHeader>
+              {importResult.errorCount > 0 && (
+                <div className="mt-4 max-h-60 overflow-y-auto space-y-2 pr-2">
+                  <h4 className="font-semibold">Detalhes dos Erros:</h4>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground">
+                    {importResult.errors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <DialogFooter>
+                <DialogClose asChild><Button>Fechar</Button></DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LostReasonsTab() {
+  const { toast } = useToast();
+  const [reasons, setReasons] = useState<{ id: string; reason: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingReason, setEditingReason] = useState<{ id: string; reason: string } | null>(null);
+  const [reasonForm, setReasonForm] = useState({ reason: '' });
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/lost-reasons', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Falha ao buscar motivos.');
+      const data = await response.json();
+      setReasons(data.reasons || []);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const openDialog = (reason: { id: string; reason: string } | null = null) => {
+    if (reason) {
+      setEditingReason(reason);
+      setReasonForm({ reason: reason.reason });
+    } else {
+      setEditingReason(null);
+      setReasonForm({ reason: '' });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = localStorage.getItem('authToken');
+    const method = editingReason ? 'PUT' : 'POST';
+    const url = editingReason ? `/api/lost-reasons/${editingReason.id}` : '/api/lost-reasons';
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ reason: reasonForm.reason }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao salvar motivo.');
+      }
+      toast({ title: 'Sucesso!', description: `Motivo ${editingReason ? 'atualizado' : 'criado'}.` });
+      setIsDialogOpen(false);
+      fetchData();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: error.message });
+    }
+  };
+
+  const handleDelete = async (reasonId: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este motivo?')) return;
+    const token = localStorage.getItem('authToken');
+    try {
+      const response = await fetch(`/api/lost-reasons/${reasonId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao excluir motivo.');
+      }
+      toast({ title: 'Sucesso!', description: 'Motivo excluído.' });
+      fetchData();
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: error.message });
+    }
+  };
+
+  if (loading) return <Card><CardContent className="p-6">Carregando...</CardContent></Card>;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Motivos de Perda de Cliente</CardTitle>
+          <CardDescription>Adicione, edite ou remova os motivos que aparecem ao marcar um cliente como 'Perdido'.</CardDescription>
+        </div>
+        <Button onClick={() => openDialog(null)}><Plus className="h-4 w-4 mr-2" /> Novo Motivo</Button>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader><TableRow><TableHead>Motivo</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {reasons.map((reason) => (
+              <TableRow key={reason.id}>
+                <TableCell className="font-medium">{reason.reason}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="icon" onClick={() => openDialog(reason)}><Edit className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(reason.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingReason ? 'Editar Motivo' : 'Novo Motivo de Perda'}</DialogTitle>
+            <DialogDescription className="sr-only">Formulário para adicionar ou editar motivos de perda de cliente.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Descrição do Motivo</Label>
+              <Input id="reason" value={reasonForm.reason} onChange={(e) => setReasonForm({ reason: e.target.value })} required />
+            </div>
+            <DialogFooter><Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Cancelar</Button><Button type="submit">Salvar</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+export default function SettingsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'MARKETING_ADMIN';
+
+  return (
+    <div className="flex-1 p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
+        <p className="text-muted-foreground">Gerencie as configurações e preferências da sua conta.</p>
+      </div>
+
+      <Tabs defaultValue="profile" className="space-y-6">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-7' : 'grid-cols-4'}`}>
+          <TabsTrigger value="profile"><UserIcon className="h-4 w-4 mr-2" />Perfil</TabsTrigger>
+          {isAdmin && <TabsTrigger value="team"><Users className="h-4 w-4 mr-2" />Equipe</TabsTrigger>}
+          <TabsTrigger value="appearance"><Sun className="h-4 w-4 mr-2" />Aparência</TabsTrigger>
+          <TabsTrigger value="notifications"><Bell className="h-4 w-4 mr-2" />Notificações</TabsTrigger>
+          <TabsTrigger value="security"><Shield className="h-4 w-4 mr-2" />Segurança</TabsTrigger>
+          {isAdmin && <TabsTrigger value="import"><Upload className="h-4 w-4 mr-2" />Importação</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="lost-reasons"><ListX className="h-4 w-4 mr-2" />Motivos de Perda</TabsTrigger>}
+        </TabsList>
+        <TabsContent value="profile"><ProfileTab /></TabsContent>
+        {isAdmin && <TabsContent value="team"><TeamManagementTab /></TabsContent>}
+        <TabsContent value="appearance"><AppearanceTab /></TabsContent>
+        <TabsContent value="notifications"><NotificationsTab /></TabsContent>
+        <TabsContent value="security"><SecurityTab /></TabsContent>
+        {isAdmin && <TabsContent value="import"><DataImportTab /></TabsContent>}
+        {isAdmin && <TabsContent value="lost-reasons"><LostReasonsTab /></TabsContent>}
+      </Tabs>
+    </div>
+  );
+}

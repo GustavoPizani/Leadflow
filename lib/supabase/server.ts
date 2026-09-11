@@ -1,8 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { isSupabaseConfigured, createMockServerClient } from './mock-auth';
 
 export function createClient() {
   const cookieStore = cookies();
+
+  if (!isSupabaseConfigured()) {
+    return createMockServerClient(cookieStore) as any;
+  }
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

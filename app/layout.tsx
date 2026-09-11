@@ -19,7 +19,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "Leadflow",
-  description: "Captura e distribuição de leads",
+  description: "Captura e distribuição inteligente de leads com roleta e integrações",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
